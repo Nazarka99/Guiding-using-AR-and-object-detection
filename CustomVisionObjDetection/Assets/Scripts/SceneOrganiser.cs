@@ -2,7 +2,8 @@
 using System.Linq;
 using UnityEngine;
 
-public class SceneOrganiser : MonoBehaviour {
+public class SceneOrganiser : MonoBehaviour
+{
 
     /// <summary>
     /// Allows this class to behave like a singleton
@@ -103,37 +104,141 @@ public class SceneOrganiser : MonoBehaviour {
     {
         if (analysisObject.predictions != null)
         {
-            lastLabelPlacedText = lastLabelPlaced.GetComponent<TextMesh>();
-            // Sort the predictions to locate the highest one
-            List<Prediction> sortedPredictions = new List<Prediction>();
-            sortedPredictions = analysisObject.predictions.OrderBy(p => p.probability).ToList();
-            Prediction bestPrediction = new Prediction();
-            bestPrediction = sortedPredictions[sortedPredictions.Count - 1];
+            // Define the hierarchy
+            List<List<string>> hierarchy = new List<List<string>>
+        {
+            new List<string> { "Full body" },
+            new List<string> { "Middle + ground" },
+            new List<string> { "Middle part", "Upper part", "Ground part" }
+        };
 
-            if (bestPrediction.probability > probabilityThreshold)
+            // Filter out predictions below the threshold
+            List<Prediction> predictions = analysisObject.predictions
+                .Where(p => p.probability > 0.5f)
+                .ToList();
+
+            // Sort the predictions first by the hierarchy, then by confidence
+            predictions.Sort((p1, p2) =>
             {
-                quadRenderer = quad.GetComponent<Renderer>() as Renderer;
-                Bounds quadBounds = quadRenderer.bounds;
-
-                // Position the label as close as possible to the Bounding Box of the prediction 
-                // At this point it will not consider depth
-                lastLabelPlaced.transform.parent = quad.transform;
-                lastLabelPlaced.transform.localPosition = CalculateBoundingBoxPosition(quadBounds, bestPrediction.boundingBox);
-
-                // Set the tag text
-                lastLabelPlacedText.text = bestPrediction.tagName;
-
-                // Cast a ray from the user's head to the currently placed label, it should hit the object detected by the Service.
-                // At that point it will reposition the label where the ray HL sensor collides with the object,
-                // (using the HL spatial tracking)
-                Debug.Log("Repositioning Label");
-                Vector3 headPosition = Camera.main.transform.position;
-                RaycastHit objHitInfo;
-                Vector3 objDirection = lastLabelPlaced.position;
-                if (Physics.Raycast(headPosition, objDirection, out objHitInfo, 30.0f, SpatialMapping.PhysicsRaycastMask))
+                int hierarchyIndex1 = hierarchy.FindIndex(h => h.Contains(p1.tagName));
+                int hierarchyIndex2 = hierarchy.FindIndex(h => h.Contains(p2.tagName));
+                if (hierarchyIndex1 == hierarchyIndex2)
                 {
-                    lastLabelPlaced.position = objHitInfo.point;
+                    // If same hierarchy level, sort by confidence
+                    return p2.probability.CompareTo(p1.probability);
                 }
+                else
+                {
+                    // Otherwise, sort by hierarchy level
+                    return hierarchyIndex1.CompareTo(hierarchyIndex2);
+                }
+            });
+
+            if (predictions.Count > 0)
+            {
+                // The best prediction is now the first one in the list
+                Prediction bestPrediction = predictions[0];
+
+                if (bestPrediction.probability > probabilityThreshold)
+                {
+                    quadRenderer = quad.GetComponent<Renderer>() as Renderer;
+                    Bounds quadBounds = quadRenderer.bounds;
+
+                    // Position the label as close as possible to the Bounding Box of the prediction 
+                    // At this point it will not consider depth
+                    lastLabelPlaced.transform.parent = quad.transform;
+                    lastLabelPlaced.transform.localPosition = CalculateBoundingBoxPosition(quadBounds, bestPrediction.boundingBox);
+
+                    // Set the tag text
+                    lastLabelPlacedText.text = bestPrediction.tagName;
+
+                    // Cast a ray from the user's head to the currently placed label, it should hit the object detected by the Service.
+                    // At that point it will reposition the label where the ray HL sensor collides with the object,
+                    // (using the HL spatial tracking)
+                    Debug.Log("Repositioning Label");
+                    Vector3 headPosition = Camera.main.transform.position;
+                    RaycastHit objHitInfo;
+                    Vector3 objDirection = lastLabelPlaced.position;
+                    if (Physics.Raycast(headPosition, objDirection, out objHitInfo, 30.0f, SpatialMapping.PhysicsRaycastMask))
+                    {
+                        lastLabelPlaced.position = objHitInfo.point;
+                    }
+                }
+
+                // Remove the best prediction from the list
+                predictions.RemoveAt(0);
+
+                // Check if there's another prediction that's not in the same hierarchy level as the best prediction
+                Prediction nextBestPrediction = predictions.FirstOrDefault(p => !hierarchy[hierarchy.FindIndex(h => h.Contains(bestPrediction.tagName))].Contains(p.tagName));
+
+                if (nextBestPrediction != null)
+                {
+                    // Position the label as close as possible to the Bounding Box of the prediction 
+                    // At this point it will not consider depth
+                    Transform nextLabelPlaced = Instantiate(label.transform, cursor.transform.position, transform.rotation);
+                    TextMesh nextLabelPlacedText = nextLabelPlaced.GetComponent<TextMesh>();
+                    nextLabelPlacedText.text = "";
+                    nextLabelPlaced.transform.localScale = new Vector3(0.005f, 0.005f, 0.005f);
+
+                    quadRenderer = quad.GetComponent<Renderer>() as Renderer;
+                    Bounds quadBounds = quadRenderer.bounds;
+
+                    nextLabelPlaced.transform.parent = quad.transform;
+                    nextLabelPlaced.transform.localPosition = CalculateBoundingBoxPosition(quadBounds, nextBestPrediction.boundingBox);
+
+                    // Set the tag text
+                    lastLabelPlacedText.text = bestPrediction.tagName;
+
+                    // Cast a ray from the user's head to the currently placed label, it should hit the object detected by the Service.
+                    // At that point it will reposition the label where the ray HL sensor collides with the object,
+                    // (using the HL spatial tracking)
+                    Debug.Log("Repositioning Label");
+                    Vector3 headPosition = Camera.main.transform.position;
+                    RaycastHit objHitInfo;
+                    Vector3 objDirection = lastLabelPlaced.position;
+                    if (Physics.Raycast(headPosition, objDirection, out objHitInfo, 30.0f, SpatialMapping.PhysicsRaycastMask))
+                    {
+                        lastLabelPlaced.position = objHitInfo.point;
+                    }
+                }
+
+                // Remove the best prediction from the list
+                predictions.RemoveAt(0);
+
+                // Check if there's another prediction that's not in the same hierarchy level as the best prediction
+                // Prediction nextBestPrediction = predictions.FirstOrDefault(p => !hierarchy[hierarchy.FindIndex(h => h.Contains(bestPrediction.tagName))].Contains(p.tagName));
+
+                if (nextBestPrediction != null)
+                {
+                    // Position the label as close as possible to the Bounding Box of the prediction 
+                    // At this point it will not consider depth
+                    Transform nextLabelPlaced = Instantiate(label.transform, cursor.transform.position, transform.rotation);
+                    TextMesh nextLabelPlacedText = nextLabelPlaced.GetComponent<TextMesh>();
+                    nextLabelPlacedText.text = "";
+                    nextLabelPlaced.transform.localScale = new Vector3(0.005f, 0.005f, 0.005f);
+
+                    quadRenderer = quad.GetComponent<Renderer>() as Renderer;
+                    Bounds quadBounds = quadRenderer.bounds;
+
+                    nextLabelPlaced.transform.parent = quad.transform;
+                    nextLabelPlaced.transform.localPosition = CalculateBoundingBoxPosition(quadBounds, nextBestPrediction.boundingBox);
+
+                    // Set the tag text
+                    nextLabelPlacedText.text = nextBestPrediction.tagName;
+
+                    // Cast a ray from the user's head to the currently placed label, it should hit the object detected by the Service.
+                    // At that point it will reposition the label where the ray HL sensor collides with the object,
+                    // (using the HL spatial tracking)
+                    Debug.Log("Repositioning Label");
+                    Vector3 headPosition = Camera.main.transform.position;
+                    RaycastHit objHitInfo;
+                    Vector3 objDirection = nextLabelPlaced.position;
+                    if (Physics.Raycast(headPosition, objDirection, out objHitInfo, 30.0f, SpatialMapping.PhysicsRaycastMask))
+                    {
+                        nextLabelPlaced.position = objHitInfo.point;
+                    }
+                }
+
             }
         }
         // Reset the color of the cursor
@@ -165,5 +270,6 @@ public class SceneOrganiser : MonoBehaviour {
 
         return new Vector3((float)normalisedPos_X, (float)normalisedPos_Y, 0);
     }
+
 
 }

@@ -1,0 +1,2 @@
+E:\AR\Unity Projects\2017\CustomVisionObjDetection\App v2.2\CustomVisionObjDetection\CustomVisionObjDetection.csproj;x86
+E:\AR\Unity Projects\2017\CustomVisionObjDetection\App v2.2\GeneratedProjects\UWP\Assembly-CSharp\Assembly-CSharp.csproj;x86

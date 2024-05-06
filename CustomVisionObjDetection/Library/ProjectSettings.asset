@@ -567,7 +567,7 @@ PlayerSettings:
   m_MobileRenderingPath: 1
   metroPackageName: CustomVisionObjDetection
   metroPackageVersion: 1.0.0.0
-  metroCertificatePath: E:\AR\Unity Projects\2017\CustomVisionObjDetection\Assets\WSATestCertificate.pfx
+  metroCertificatePath: Assets\WSATestCertificate.pfx
   metroCertificatePassword: 
   metroCertificateSubject: DefaultCompany
   metroCertificateIssuer: DefaultCompany
